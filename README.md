@@ -1,3 +1,5 @@
+
+
 # Spring 2018
 # Project 1: What did the presidents say at their inauguation?
 
@@ -8,7 +10,7 @@ This is the first and only *individual* (as opposed to *team*) this semester.
 
 Term: Spring 2018
 
-+ Projec title: Data Story on Inaugural Speeches of POTUS 
++ Projec title: [Data Story on Inaugural Speeches of POTUS](https://cdn.rawgit.com/TZstatsADS/Spring2018-Project1-yiyi-zhang-cu/7651fe24/doc/DataStoryonInauguralSpeechesofPOTUS.nb.html) 
 + This project is conducted by Yiyi Zhang  
 
 + Project summary:  
@@ -21,12 +23,14 @@ What are the most memorable inaugurable address quotes that you can think of off
 "My fellow Americans: Ask not what your country can do for you - ask what you can do for your country. My fellow citizens of the world: Ask not what America will do for you, but what together we can do for the freedom of man."  
 *- John F. Kennedy, Jan. 20, 1961.*
 
-Although there are a few very memorable, most inaugural addresses have been long forgotten. This note book will give us a chance to take a closer look at the inaugural speeches of the President of the U.S. (POTUS), but from a data scientic perspective. The scope of this analysis includes 58 Inaugural Speeches of 39 POTUS, which are scrapped from [The American Presidentcy Project][1]. 
+Although there are a few very memorable, most inaugural addresses have been long forgotten. This note book will give us a chance to take a closer look at the inaugural speeches of the President of the U.S. (POTUS), but from a data scientic perspective. The scope of this analysis includes 58 Inaugural Speeches of 39 POTUS, which were scrapped from [The American Presidentcy Project][1]. 
 
 **Groups of Interest**  
 The following factors were considered in this analysis.  
 
 *   Overal and Individual Speeches 
+  +  The Five Most Famous Speeches 
+  +  The Most Recent Speeches by the Current President and the Last Three Presidents 
 *   Number of Terms Served
 *   Political Party
 *   Educational Background
@@ -41,6 +45,8 @@ For each group of interest, the following analysis has performed.
 *   Word Cloud  
 *   Sentimental Analysis  
 *   Topic Modeling  
+
+
 
 *References*  
 * [The American Presidentcy Project][1]
