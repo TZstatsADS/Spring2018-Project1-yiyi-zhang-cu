@@ -1,8 +1,10 @@
 ---
 title: "Data Story on Inaugural Speeches of POTUS"
-author: "Yiyi Zhang"  
+author: "Yiyi Zhang"
 date: "February 2018"
-output: html_notebook
+output:
+  html_notebook: default
+  pdf_document: default
 ---
 
 ## Introduction  
@@ -68,7 +70,7 @@ library("scales")
 #library("sentimentr")
 library("factoextra")
 #library("RANN")
-#library("topicmodels")
+library("topicmodels")
 
 # Obtain speechFuncs functions from the website listed below 
 # 'speechFuncs' includes 'f.speechlinks', 'f.plotsent.len', and 'f.smooth.topic'
@@ -88,13 +90,6 @@ print(R.version)
 ```{r}
 getwd()
 ```
-
-
-
-
-
-
-
 
 ### Step 1 - Data Harvest  
 ```{r, message=FALSE, warning=FALSE}
@@ -154,6 +149,12 @@ for(i in seq(nrow(inaug.list))) {
 write.csv(inaug.list, file = "../output/inaug_list.csv")
 #summary(inaug.list)
 ```
+The scope of this analysis includes `r nrow(inaug.list)` Inaugural Speeches of `r length(unique(inaug.list$File))` POTUS, who are listed below.  
+```{r}
+unique(inaug.list$President)
+all.File <- unique(inaug.list$File)
+
+```
 
 ### Step 2 - Data Processing  
 ```{r, message=FALSE, warning=FALSE}
@@ -202,43 +203,58 @@ sentence.list <- sentence.list%>%filter(!is.na(word.count))
 ### Step 3 - Build Functions {.tabset}  
 #### Assign Group and Color
 ```{r}
-# assign.group
-# Assign In.var to groups in In.Group.var
-assign.group <- function(In.var,In.Group.var){
-    for (i in 1:length(In.Group.var)){
-      if (In.var %in% unlist(In.Group.var[i])) {return(names(In.Group.var)[i])}
-    }
-}
-
 # assign.color
 # Assign In.File a color correspond to the groups in In.Group
-assign.color <- function(In.var,In.Group.var,In.Palette="Set1"){
-  col.use <- alpha(brewer.pal(length(In.Group.var),In.Palette),0.9)
+assign.color <- function(In.var, In.Group.var,
+                         In.Palette.var="Set1", In.alpha.var=1){
+  # In.Group.var is a list of named lists.   
+  col.use <- alpha(brewer.pal(length(In.Group.var),
+                              In.Palette.var),
+                   In.alpha.var)
     for (i in 1:length(In.Group.var)){
       if (In.var %in% unlist(In.Group.var[i])) {return(col.use[i])}
     }
 }
+
+# assign.group
+# Assign In.var to groups in In.Group.var
+assign.group <- function(In.var, In.Group.var){
+  # In.Group.var is a list of named lists. 
+  for (i in 1:length(In.Group.var)){
+    if (In.var %in% unlist(In.Group.var[i])) {return(names(In.Group.var)[i])}
+    }
+}
+
+
 ```
 #### Length of Speeches
 ```{r}
 # Speech.Length.Bar.Plot
 # Create Bar Plot for every File in groups of In.Group
+# In.Group is a list of named lists 
+# In.Term is a list of named lists
 Speech.Length.Bar.Plot <- function(In.list=inaug.list,
-                                   In.Group, In.Group.name, 
+                                   In.Group, 
                                    In.Term=list("First Term"="1",
                                                 "Second Term"="2",
                                                 "Third Term"="3",
-                                                "Fourth Term"="4")){
+                                                "Fourth Term"="4"),
+                                   In.by.Term=FALSE,
+                                   In.Palette="Set1", In.alpha=1){
   var <- In.list%>%
           filter(File%in%unlist(In.Group),
                  Term%in%unlist(In.Term))
   var$File <- factor(var$File)
-  var$FileOrdered <- reorder(var$File, var$Words, mean, order=T)
-  var$group.var <- unlist(lapply(var$File, assign.group, In.Group))
-  var$group.var <- factor(var$group.var, names(In.Group))
-  var$col.id <- unlist(lapply(var$File,
-                              assign.color, 
-                              In.Group))
+#  var$FileOrdered <- reorder(var$File, var$Words, mean, order=T)
+  if (In.by.Term==FALSE) {
+    var$col.id <- unlist(lapply(var$File, assign.color, In.Group, 
+                              In.Palette, In.alpha))
+    legend.id <- names(In.Group)
+  }else{
+    var$col.id <- unlist(lapply(var$Term, assign.color, In.Term, 
+                              In.Palette, In.alpha))
+    legend.id <- names(In.Term)
+  }
   
   x <- barplot(var$Words, space = 1,
                col=var$col.id,
@@ -249,26 +265,42 @@ Speech.Length.Bar.Plot <- function(In.list=inaug.list,
        adj=1, srt = 60, xpd = TRUE,
        labels = paste(substr(var$Date,1,4),
                       var$President))
-  legend("topright", inset= 0.02, legend =names(In.Group) , 
-         text.col = brewer.pal(length(In.Group),"Set1")[1:length(In.Group)], 
+  legend("topright", inset= 0.02, legend =legend.id , 
+         text.col = brewer.pal(length(legend.id),
+                               In.Palette)[1:length(legend.id)], 
          cex = 0.7, box.lty=2 )
 }
 
 # Speech.Length.Box.Plot
 # Create Box Plot for groups in In.Group
+# In.Group is a list of named lists 
+# In.Term is a list of named lists
 Speech.Length.Box.Plot <- function(In.list=inaug.list, 
-                                   In.Group, In.Group.name,
-                                   In.Term=c("1","2","3","4")){
+                                   In.Group,
+                                   In.Term=list("First Term"="1",
+                                                "Second Term"="2",
+                                                "Third Term"="3",
+                                                "Fourth Term"="4"),
+                                   In.by.Term=FALSE,
+                                   In.Palette="Set1", In.alpha=1){
   var <- In.list%>%
           filter(File%in%unlist(In.Group),
-                 Term%in%In.Term)
+                 Term%in%unlist(In.Term))
   var$File <- factor(var$File)
-  var$FileOrdered <- reorder(var$File, var$Words, mean, order=T)
-  var$group.var <- unlist(lapply(var$File, assign.group, In.Group))
-  var$group.var <- factor(var$group.var, names(In.Group))
+#  var$FileOrdered <- reorder(var$File, var$Words, mean, order=T)
+  if (In.by.Term==FALSE) {
+    var$group.var <- unlist(lapply(var$File, assign.group, In.Group))  
+    var$group.var <- factor(var$group.var, names(In.Group))
+    legend.id <- names(In.Group)
+  }else{
+    var$group.var <- unlist(lapply(var$Term, assign.group, In.Term)) 
+    var$group.var <- factor(var$group.var, names(In.Term))
+    legend.id <- names(In.Term)
+  }
 
   boxplot(var$Words~var$group.var,
-          col=alpha(brewer.pal(length(In.Group),"Set1"),0.7)[1:length(In.Group)],
+          col=alpha(brewer.pal(length(legend.id),In.Palette),
+                    In.alpha)[1:length(legend.id)],
           cex.axis = 0.7,
           main = "Number of Words in a Speech" )
 }
@@ -277,44 +309,50 @@ Speech.Length.Box.Plot <- function(In.list=inaug.list,
 ```{r}
 # Bee.Swarm.Plot
 # Create Bee Swarm Plot for every File in groups of In.Group
-Bee.Swarm.Plot <- function(In.list=sentence.list, In.Group, In.Group.name){
-  var <- In.list%>%filter(File%in%unlist(In.Group))
+Bee.Swarm.Plot <- function(In.list=sentence.list, In.Group, 
+                           In.Palette="Set1", In.alpha=0.4){
+  var <- In.list%>%
+          filter(File%in%unlist(In.Group))
   var$File <- factor(var$File)
   var$FileOrdered <- reorder(var$File, var$word.count, mean, order=T)
   
   for (i in 1:length(In.Group)){
     if (i==1){
       beeswarm(word.count~FileOrdered, 
-             data = var%>%filter(File%in%unlist(In.Group[i])),
+             data = var%>%
+                    filter(File%in%unlist(In.Group[i])),
              horizontal = TRUE,
-             pch=16, col=alpha(brewer.pal(length(In.Group), "Set1")[i], 0.4), 
+             pch=16, col=alpha(brewer.pal(length(In.Group), In.Palette)[i], 
+                               In.alpha), 
              cex=0.55, cex.axis=0.55, cex.lab=1,
              spacing=5/nlevels(var$FileOrdered),
              las=2, ylab="", xlab="",
              main="Number of Words in a Sentence")
-    }
-    else {
+    } else {
       beeswarm(word.count~FileOrdered, 
-             data = var%>%filter(File%in%unlist(In.Group[i])),
+             data = var%>%
+                    filter(File%in%unlist(In.Group[i])),
              add=TRUE,
              horizontal = TRUE,
-             pch=16, col=alpha(brewer.pal(length(In.Group), "Set1")[i], 0.4), 
+             pch=16, col=alpha(brewer.pal(length(In.Group), In.Palette)[i], 
+                               In.alpha), 
              cex=0.55, cex.axis=0.55, cex.lab=1,
              spacing=5/nlevels(var$FileOrdered)
              )
     }
   }
-  
   legend("bottomright", inset= 0.02, legend =names(In.Group) , 
-         text.col = brewer.pal(length(In.Group),"Set1")[1:length(In.Group)], 
+         text.col = brewer.pal(length(In.Group),In.Palette)[1:length(In.Group)], 
          cex = 0.7, box.lty=2 )
 }
 
 
 # Bee.Swarm.Plot.Group
 # Create Bee Swarm Plot for groups in In.Group
-Bee.Swarm.Plot.Group <- function(In.list=sentence.list, In.Group, In.Group.name){
-  var <- In.list%>%filter(File%in%unlist(In.Group))
+Bee.Swarm.Plot.Group <- function(In.list=sentence.list, In.Group, 
+                                 In.Palette="Set1", In.alpha=0.4){
+  var <- In.list%>%
+          filter(File%in%unlist(In.Group))
   var$File <- factor(var$File)
   var$FileOrdered <- reorder(var$File, var$word.count, mean, order=T)
   var$group.var <- unlist(lapply(var$File, assign.group, In.Group))
@@ -324,14 +362,14 @@ Bee.Swarm.Plot.Group <- function(In.list=sentence.list, In.Group, In.Group.name)
              data = var%>%filter(File%in%unlist(In.Group)),
              horizontal = TRUE,
              pch=16, col=alpha(brewer.pal(length(In.Group),
-                                          "Set1")[1:length(In.Group)], 
-                               0.4), 
+                                          In.Palette)[1:length(In.Group)], 
+                               In.alpha), 
              cex=0.55, cex.axis=0.55, cex.lab=1,
              spacing=5/nlevels(var$FileOrdered),
              las=2, ylab="", xlab="",
              main="Number of Words in a Sentence")
   legend("bottomright", inset=0.02, legend =names(In.Group) , 
-         text.col = brewer.pal(length(In.Group),"Set1")[1:length(In.Group)], 
+         text.col = brewer.pal(length(In.Group),In.Palette)[1:length(In.Group)], 
          cex = 0.7, box.lty=2 )
   boxplot(var$word.count~var$group.var, horizontal=TRUE, 
           col="#0000ff22", axes=FALSE, add=TRUE)
@@ -341,29 +379,31 @@ Bee.Swarm.Plot.Group <- function(In.list=sentence.list, In.Group, In.Group.name)
 ```{r}
 # Sentence.Searcher.Group
 # Genenrates shortest or longest sentences of groups in In.Group
+# Generate longest sentences if In.Long=True 
 Sentence.Searcher.Group <- function(In.list=sentence.list, 
                                     In.Group, 
                                     In.Term=c("1","2","3","4"),
-                                    In.Long=TRUE){
-  df <- c(seq(1:5))
+                                    In.Long=TRUE, 
+                                    In.min.words=3, In.n.sentences=5){
+  df <- c(seq(1:In.n.sentences))
   for (i in 1:length(In.Group)){
     var <-   In.list%>%
              filter(File%in%unlist(In.Group[i]), 
                     Term%in%In.Term,
-                    word.count>=3)%>%
+                    word.count>=In.min.words)%>%
                arrange(desc(word.count))%>%
                select(sentences)
       if (In.Long==TRUE){
-        var <- head(var,5)
+        var <- head(var,In.n.sentences)
       } else {
-        var <- tail(var,5)
+        var <- tail(var,In.n.sentences)
       } 
       if (nrow(var)!=0){
         df<- cbind(df,var) 
       } else {
-        df <- cbind(df,c(rep("SYSTEM: No data available in table",5)))
+        df <- cbind(df,c(rep("SYSTEM: No data available in table",In.n.sentences)))
       }
-    }
+  }
   df<- df[,-1]
   colnames(df)<- names(In.Group)
   df
@@ -374,11 +414,10 @@ Sentence.Searcher.Group <- function(In.list=sentence.list,
 ```{r}
 # Word.Cloud.Group
 # Creat Word Cloud for groups in In.Group
-Word.Cloud.Group <- function(In.list=inaug.list, In.Group, In.Group.name){
+Word.Cloud.Group <- function(In.list=inaug.list, In.Group){
   for (i in 1:length(In.Group)){
       var <- In.list%>%
              filter(File%in%unlist(In.Group[i]))
-      
       
       docs <- Corpus(VectorSource(var$Fulltext))
       docs <- tm_map(docs, stripWhitespace) # Eliminate extra whitespace
@@ -408,7 +447,8 @@ Word.Cloud.Group <- function(In.list=inaug.list, In.Group, In.Group.name){
           )
       title(main = names(In.Group)[i], 
             cex.main=1.5,
-            col.main=substr(pal[i],1,nchar(pal[i])-1))
+            col.main=brewer.pal(5, pal[i])[4]
+           )
   }
 }
 ```
@@ -446,7 +486,13 @@ Sentence.Length.Sentimetal.Plot <- function(In.list=sentence.list, In.File, In.T
        col=ptcol.use,
        type="h" #,ylim=c(-10, max(In.list$word.count))
        )
-  title(main =In.File, xlab = "Sentence ID", ylab = "Number of Words")
+  title(main =paste(In.File, "Term", In.Term, sep=" "), 
+        xlab = "Sentence ID", ylab = "Number of Words")
+  legend("topright", inset= 0.02, 
+         legend =c("anger","anticipation","disgust", "fear", "joy",
+                   "sadness","suprise","trust","negative","positive"), 
+         text.col = brewer.pal(10,"Set3"), 
+         cex = 0.6, box.lty=2 )
 }
 
 ```
@@ -455,7 +501,7 @@ Sentence.Length.Sentimetal.Plot <- function(In.list=sentence.list, In.File, In.T
 # Sentimental.Analysis.Plots 
 # Creat Heatmap for correlations and 
 # Barplot for average value of emotions for groups in In.Group
-Sentimental.Analysis.Plots <- function(In.list=sentence.list, In.Group, In.Group.name){
+Sentimental.Analysis.Plots <- function(In.list=sentence.list, In.Group){
 for (i in 1:length(In.Group)){
 #  heatmap.2(cor(In.list%>%
 #                filter(File%in%unlist(In.Group[i]))%>%
@@ -481,13 +527,14 @@ for (i in 1:length(In.Group)){
 
 Sentimental.Sentence.Searcher <- function(In.list=sentence.list, 
                                     In.Group, 
-                                    In.Term=c("1","2","3","4")){
+                                    In.Term=c("1","2","3","4"), 
+                                    In.min.words=3){
   df <- NULL
   for (i in 1:length(In.Group)){
     var <-   In.list%>%
              filter(File%in%unlist(In.Group[i]), 
                     Term%in%In.Term,
-                    word.count>=3)%>%
+                    word.count>=In.min.words)%>%
                select(sentences:trust)
 #    var <- as.data.frame(var)
     rst <- as.character(var$sentences[apply(var[,-(1:2)],2,which.max)])
@@ -539,28 +586,7 @@ Sentimental.Sentence.KMeans <- function(In.list=sentence.list,
     
 }
 
-# Sentimental.Sentence.Cluster
-# Visualze clustering results for groups in In.Group
-Sentimental.Sentence.Cluster <- function(In.list=sentence.list, 
-                                         In.Group, 
-                                         In.Term=c("1","2","3","4")){
-  for (i in length(In.Group)){
-  # Perform k-means clustering 
-  clustering.rst <- Sentimental.Sentence.KMeans(In.list,
-                                                In.Group[i],
-                                                In.Term)
-  #Visualze clustering results 
-  fviz_cluster(clustering.rst[[1]], 
-             stand=F, repel= TRUE,
-             data = clustering.rst[[2]][,-1], 
-             xlab="", xaxt="n",
-             show.clust.cent=FALSE)
-  }
-  
-}  
-
 ```
-
 
 
 ## Analysis  
@@ -586,17 +612,10 @@ For each group of interest, we will perform the following analysis.
 
 ### Overal and Individual Speeches  <a name="IndivSpeeches"></a>  {.tabset}  
 #### Overview  
-The scope of this analysis includes 58 Inaugural Speeches of 39 POTUS, which are scrapped from [The American Presidentcy Project][1]. Among them, there are five inaugural addresses considered the best of all time, which includes Thomas Jefferson's 1st (1801), Abraham Lincoln's 2nd (1865), Franklin Roosevelt's 1st (1933), Franklin Roosevelt's 2nd (1937), and John F. Kennedy's (1961). We will take a closer look at them and see if we can find any interesting facts, similaries or differences, among these five speeches, which may contribute to the great success of them. Also, the most recent four POTUS may sound more familiar than others to our Millennials. So let's take them into consideration as the analysis of individual speecn as well.  
-```{r}
-print("The Number of Inaugural Speeches in Scope:")
-nrow(inaug.list)
-print("The Number of POTUS in Scope")
-length(unique(inaug.list$File))
-print("These POTUS are ")
-unique(inaug.list$File)
-```
+The scope of this analysis includes 58 Inaugural Speeches of 39 POTUS, which are scrapped from [The American Presidentcy Project][1]. We will perform some analysis over all these speeches hopefully to learn some new facts about them. We plan to find out the length of these speeches, the length of the sentences used in a speech, and the most commonly used words. Among all these speeches, five inaugural addresses were considered the best of all time, which are Thomas Jefferson's 1st (1801), Abraham Lincoln's 2nd (1865), Franklin Roosevelt's 1st (1933), Franklin Roosevelt's 2nd (1937), and John F. Kennedy's (1961). We will take a closer look at them and see if we can find any interesting facts, similaries or differences, among these five speeches, which may contribute to the great success of them. In additionn, the most recent four POTUS may sound more familiar than others to our Millennials. So let's take their speeches into our consideration as part of the the analysis of individual speecn as well.  
 
 #### Staging  
+*Staging for Word Cloud*
 ```{r}
 # Read in all the speeches  
 folder.path <- "../data/InauguralSpeeches/"
@@ -634,7 +653,7 @@ dtm.tidy <- tidy(dtm.all)
 #dtm.all  <- dtm.all[rowTotals> 0, ]
 #corpus.list <- corpus.list[rowTotals>0, ]
 ```
-Prepare for LDA Topic Modeling
+*Staging for LDA Topic Modeling* 
 ```{r}
 # Create corpus list
 corpus.list <- sentence.list[2:(nrow(sentence.list)-1), ]
@@ -676,6 +695,11 @@ corpus.list <- corpus.list[rowTotals>0, ]
 ```
 
 #### Length of Speeches  
+Below is a summary of the length of all speeches. 
+```{r}
+summary(inaug.list$Words)
+```
+To get a better sense of the distribution of the number of words in speech, a box-and-whisker plot is created as below. As shown, the speeches of William H. Harrison and William H. Taft spoke were much longer than others.  
 ```{r, fig.height=5, fig.width=5}
 # Generate bar plot of the length of speeches
 bxpdat.speech <- boxplot(inaug.list$Words, xlab="Number of Words in a Speech")
@@ -684,33 +708,24 @@ text(x=1.2, y=bxpdat.speech$out,
      cex=0.7, col="blue")
 speech.len.file <- inaug.list$File[order(inaug.list$Words, decreasing =TRUE)]
 ```
-Below is a summary of the length of speeches
-```{r}
-summary(inaug.list$Words)
-```
+
 Below listed the top three POTUS who had the longest and shortest speeches respectively.  
 The top three POTUS who had the longest speeches are 
 ```{r}
 head(speech.len.file,3)
 ```
-The top three POTUS who had the shortes speeches are
+The top three POTUS who had the shortest speeches are
 ```{r}
 tail(speech.len.file,3)
 ```
 
 #### Length of Sentences 
-```{r, fig.height=5, fig.width=5}
-bxpdat.sentence <- boxplot(sentence.list$word.count, 
-                           xlab="Number of Words in a Sentence")
-text(x=1.2, y=bxpdat.sentence$out, 
-     labels=inaug.list$President[which(sentence.list$word.count%in%bxpdat.sentence$out)], 
-     cex=0.5, col="blue")
-
+Below is a summary of the length of sentences used in an inaugural speech.
+```{r}
 # Summary of the length of sentences
-print("Below is a summary of the length of sentences")
 summary(sentence.list$word.count)
 ```
-Below listed the shortest and longest sentenses in the speech. 
+`r sentence.list$President[which.max(sentence.list$word.count)]` had the longest sentence with `r max(sentence.list$word.count)` words in his speech. Below listed the top three shortest, which have been filter to be longer than three words, and the longest sentenses in all speeches.  
 ```{r}
 sentence.len.file <- sentence.list%>%
                       filter(word.count>=3)%>%
@@ -720,9 +735,17 @@ tail(sentence.len.file,5)
 head(sentence.len.file,5)
 ```
 
+A box-and-whisker plot has been created below to help us get a better sense of the distribution of the number of words in a sentence. 
+```{r, fig.height=5, fig.width=5}
+word.count.ave <- sentence.list%>%group_by(President)%>%summarise(word.count=round(mean(word.count,0)))
+bxpdat.sentence <- boxplot(word.count.ave$word.count, 
+                           xlab="Number of Words in a Sentence")
+text(x=1.2, y=bxpdat.sentence$out, cex=0.5, col="blue")
+```
+
+
 #### Word Cloud  
-**Wordcloud for all speeches**  
-The words which appeared more often in speeches are larger in size and darker in color as shown in the words cloud. With no surprise , the most frequent words in all speeches include "will", "government", and "people". 
+The text with larger in size and darker in color as shown in the words cloud below are the words that appeared more often in all inaugural speeches. With no surprise , the most commonly used words in all speeches include "will", "government", and "people". 
 ```{r, fig.height=5, fig.width=5}
 set.seed(123)
 wordcloud(tdm.overall$term, tdm.overall$`sum(count)`,
@@ -737,8 +760,8 @@ wordcloud(tdm.overall$term, tdm.overall$`sum(count)`,
           ) 
 title(main="What Are The Most Common Words in Inaugural Speeches?", cex.main=0.9)
 ```
-**Interactive Wordcloud for individual speeches**   
-This coould be used to find the wordcloud of each individual speech as well as to compare between two different speeches. 
+An interactive wordcloud has been created to help us picture the most frequent words used in each individual speech. This could be used to find the wordcloud of each individual speech as well as to compare between two different speeches. We will use this interactive wordcloud to indentify the most commonly used words for the most famous iaugural speeches as well as the iaugural speeches given by the four most recent presidents.
+
 ```{r, warning=FALSE}
 library(shiny)
 
@@ -754,7 +777,12 @@ shinyApp(
       ),
       fluidRow(
         plotOutput('wordclouds', height = "400px")
-      )
+      ),
+
+      fluidRow( 
+        actionButton("close","Close window",
+                     onclick = "setTimeout(function(){window.close();},500);")
+        )
     ),
     
     server = function(input, output, session) {
@@ -795,17 +823,32 @@ shinyApp(
               colors=brewer.pal(5,"Blues"), 
             main=input$speech2)
       })
+      
+      observe({
+        if (input$close>0) stopApp()
+#        js$closeWindow()
+    })
     },
-
     options = list(height = 600)
 )
 
 ```
+
 #### Sentimental Analysis  
-** indiviudal speeches**  
-The most recent four POTUS may sound more familiar than others to our Millennials. Let's take a closer look at how their emotion changed across over the speeches. Below shows the analysis of speeches form both the first and second terms, while to note that President Trump is currently in his first term.   
-```{r, fig.width = 5, fig.height = 10, warning=FALSE}
+For the five inaugural addresses which are considered the best across of all time, we can see how their emotion changed over the speech, as shown in the plot below. 
+```{r, fig.width = 10, fig.height = 13, warning=FALSE}
 par(mar=c(2,2,2,1), mfrow=c(7,1))
+Sentence.Length.Sentimetal.Plot(sentence.list,"ThomasJefferson",1)
+Sentence.Length.Sentimetal.Plot(sentence.list,"AbrahamLincoln",2)
+Sentence.Length.Sentimetal.Plot(sentence.list,"FranklinDRoosevelt",1)
+Sentence.Length.Sentimetal.Plot(sentence.list,"FranklinDRoosevelt",2)
+Sentence.Length.Sentimetal.Plot(sentence.list,"JohnFKennedy",1)
+```
+
+For the most recent four POTUS, who may sound more familiar than others to our Millennials, let's take a closer look at how their emotion changed across over the speeches. Below shows the analysis of speeches from both the first and second terms, while to note that President Trump is currently in his first term.   
+```{r, fig.width = 10, fig.height = 15, warning=FALSE}
+par(mar=c(2,2,2,1), mfrow=c(7,1))
+
 Sentence.Length.Sentimetal.Plot(sentence.list,"WilliamJClinton",1)
 Sentence.Length.Sentimetal.Plot(sentence.list,"WilliamJClinton",2)
 Sentence.Length.Sentimetal.Plot(sentence.list,"GeorgeWBush",1)
@@ -813,15 +856,6 @@ Sentence.Length.Sentimetal.Plot(sentence.list,"GeorgeWBush",2)
 Sentence.Length.Sentimetal.Plot(sentence.list,"BarackObama",1)
 Sentence.Length.Sentimetal.Plot(sentence.list,"BarackObama",2)
 Sentence.Length.Sentimetal.Plot(sentence.list,"DonaldJTrump",1)
-```
-Also, there are five inaugural addresses considered the best across all time. It includes Thomas Jefferson's 1st(1801), Abraham Lincoln's 2nd(1865), Franklin Roosevelt's 1st(1933), Franklin Roosevelt's 2nd(1937), John F. Kennedy's(1961). Let's take a closer look at them and see if you can find any similaries and differences among these five speeches, which may contribute to the great success of them. 
-```{r, fig.width = 5, fig.height = 10, warning=FALSE}
-par(mar=c(2,2,2,1), mfrow=c(7,1))
-Sentence.Length.Sentimetal.Plot(sentence.list,"ThomasJefferson",1)
-Sentence.Length.Sentimetal.Plot(sentence.list,"AbrahamLincoln",2)
-Sentence.Length.Sentimetal.Plot(sentence.list,"FranklinDRoosevelt",1)
-Sentence.Length.Sentimetal.Plot(sentence.list,"FranklinDRoosevelt",2)
-Sentence.Length.Sentimetal.Plot(sentence.list,"JohnFKennedy",1)
 ```
 
 #### Topic Modeling 
@@ -871,7 +905,7 @@ for(i in 1:k){
 ldaOut.terms.all[1:3,]
 ```
 
-Based on the most popular terms and the most salient terms for each topic, we assign a hashtag to each topic.
+Based on the most popular terms and the most salient terms for each topic, we assign a hashtag to each topic, which are "Goverment", "War", "World", "Law", "Time", "Nation", "People", are "Country". 
 ```{r}
 topics.hash <- c("Goverment", "War", "World", "Law", 
                  "Time", "Nation", "People", "Country")
@@ -912,88 +946,78 @@ This analysis has primarily focused on presidents who served one or two terms. T
 ```{r}
 ### Number of Terms Served
 # Summary of groups by the number of terms served
-inaug.list%>%
-  group_by(Term)%>%
-  summarise(Count = n_distinct(President))
+#inaug.list%>%
+#  group_by(Term)%>%
+#  summarise(Count = n_distinct(President))
 
 # Identify 'File' for each group 
-twoplus.terms <- inaug.list$File[inaug.list$Term==2]
 four.terms <- unique(inaug.list$File[inaug.list$Term>2])
+twoplus.terms <- inaug.list$File[inaug.list$Term==2]
 two.terms <- twoplus.terms[twoplus.terms != four.terms]
 one.term <- inaug.list$File[!(inaug.list$File%in%twoplus.terms)]
 
 # Create group and group name
 TermGroup <- list("One Term"=one.term, "Two Terms"=two.terms, "Four Terms"=four.terms)
-TermGroup.name <- "Number of Terms Served"
+#TermGroup.name <- "Number of Terms Served"
 ```
-POTUS are assigned into 3 groups by the number of terms they served. 
+POTUS are assigned into three groups by the number of terms they have served. 
 
-*   22 POTUS who have served only one term:
+*  `r length(one.term)` POTUS who have served only one term:
 ```{r}
 TermGroup$`One Term`
 ```
-*   16 POTUS who have served two terms: 
+*   `r length(two.terms)` POTUS who have served two terms: 
 ```{r}
 TermGroup$`Two Terms`
 ```
-*   One POTUS who has served more than two terms: 
+*   `r length(four.terms)` POTUS who has served more than two terms: 
 ```{r}
 TermGroup$`Four Terms`
 ```
 
 #### Length of Speeches  
+By looking the bar plots and box-whisker plots of the number of words used in a speech, we can see that the length of the inaugural speeches of the POTUS who served only one term is apparently longer than that of the other POTUS who served more than one term.   
 ```{r, fig.width = 15, fig.height = 5, warning=FALSE}
 par(mar=c(4.5,3,2,3), mfrow=c(1,2))
 
 # Create bar plot of each speech
-Speech.Length.Bar.Plot(inaug.list,TermGroup,TermGroup.name)
+Speech.Length.Bar.Plot(inaug.list,TermGroup)
 # Create box plot of each speech by group 
-Speech.Length.Box.Plot(inaug.list,TermGroup,TermGroup.name)
+Speech.Length.Box.Plot(inaug.list,TermGroup)
 ```
-For POTUS who served two terms, we would like to see if there is any differece between their first term and second term.  
+For POTUS who served two terms, we compared the length of speeches of their first term and sencond term. As shown in the plots, the length of speeches of their two terms are generally consistent, except for that of Abraham Lincoln's - Abraham Lincoln's sencond term speepch is a lot shorter than his first.   
 ```{r, fig.width = 15, fig.height = 5, warning=FALSE}
 par(mar=c(4.5,3,2,3), mfrow=c(1,2))
 
-# Create bar plot and box plot for 'Two Terms' group
-i.var <- inaug.list%>%
-          filter(File%in%unlist(TermGroup[2]),
-                 Term%in%c(1,2))
-i.var$File <- factor(i.var$File)
-i.var$FileOrdered <- reorder(i.var$File, i.var$Words, mean, order=T)
-  
-i.x <- barplot(i.var$Words, space = 1,
-               col = brewer.pal(9,"Blues")[c(4,7)],
-               cex.axis = 0.7,
-               main = "Number of Words in a Speech" 
-              )
-text(cex=0.5, x=i.x-0.25, y=-1.25, 
-       adj=1, srt = 60, xpd = TRUE,
-       labels = paste(substr(i.var$Date,1,4),
-                      i.var$President))
-legend("topright", inset= 0.02, legend =c("First Term", "Second Term"), 
-         text.col = brewer.pal(9,"Blues")[c(4,7)], 
-         cex = 0.7, box.lty=2 )
-
-  boxplot(i.var$Words~i.var$Term,
-          col=alpha(brewer.pal(9,"Blues"),1)[c(4,7)],
-          cex.axis = 0.7,
-          main = "Number of Words in a Speech")
-
+# Create bar plot of each speech
+Speech.Length.Bar.Plot(inaug.list,TermGroup[2],
+                       In.Term =list("First Term"="1",
+                                     "Second Term"="2"),
+                       In.by.Term = TRUE)
+# Create box plot of each speech by group 
+Speech.Length.Box.Plot(inaug.list,TermGroup[2],
+                       In.Term = list("First Term"="1",
+                                     "Second Term"="2"),
+                       In.by.Term = TRUE)
 ```
 
 #### Length of Sentences 
+By looking the bee swarm plots and box-whisker plots of the number of words used in a sentence, we can see that the length of sentences used by POTUS who served only one term is generally a bit longer than those of other POTUS who served more than one term.   
 ```{r, fig.width = 10, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,2))
 
-Bee.Swarm.Plot(sentence.list,TermGroup,TermGroup.name)
-Bee.Swarm.Plot.Group(sentence.list,TermGroup,TermGroup.name)
+Bee.Swarm.Plot(sentence.list,TermGroup)
+Bee.Swarm.Plot.Group(sentence.list,TermGroup)
 ```
-Below listed the shortest and longest sentenses in the speech. 
-```{r, warning=FALSE}
-Sentence.Searcher.Group(sentence.list,TermGroup,c("1","2","3","4"),FALSE)
-Sentence.Searcher.Group(sentence.list,TermGroup,c("1","2","3","4"),TRUE)
+Below listed the shortest and longest sentenses used in these speeches for each goup.  
+```{r, warning=FALSE, }
+Sentence.Searcher.Group(sentence.list,TermGroup,
+                        In.Term=c("1","2","3","4"),In.Long=FALSE, 
+                        In.min.words=3, In.n.sentences=5)
+Sentence.Searcher.Group(sentence.list,TermGroup,
+                        In.Term=c("1","2","3","4"),In.Long=TRUE, 
+                        In.min.words=3, In.n.sentences=5)
 ```
-For POTUS who served two terms, we would like to see if there is any differece between the their first term and sencond term.  
 ```{r, fig.width = 10, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,2))
 # Create bee swarm plot for 'Two Terms' group
@@ -1040,45 +1064,51 @@ beeswarm(word.count~Term,
   boxplot(ii.var$word.count~ii.var$Term, horizontal=TRUE, 
           col="#0000ff22", axes=FALSE, add=TRUE)
 ```
-
-Below listed the shortest and longest sentenses in the speeches of presidents who served two terms. 
+For POTUS who served two terms, we compared speeches of their first term and sencond term. From the plots, we can see that speeches of their two terms are generally consistent. Below listed the shortest and longest sentenses in the speeches of the presidents who served two terms. 
 ```{r, warning=FALSE}
-Sentence.Searcher.Group(sentence.list,TermGroup,c("1"),FALSE)[,2]
-Sentence.Searcher.Group(sentence.list,TermGroup,c("2"),FALSE)[,2]
+short.first <- Sentence.Searcher.Group(sentence.list,TermGroup,c("1"),FALSE)[,2]
+short.second <- Sentence.Searcher.Group(sentence.list,TermGroup,c("2"),FALSE)[,2]
+short.two.terms <- data.frame(short.first, short.second)
+colnames(short.two.terms) <- c("First Term", "Second Term")
+short.two.terms
 
-Sentence.Searcher.Group(sentence.list,TermGroup,c("1"),TRUE)[,2]
-Sentence.Searcher.Group(sentence.list,TermGroup,c("2"),TRUE)[,2]
+long.first <- Sentence.Searcher.Group(sentence.list,TermGroup,c("1"),TRUE)[,2]
+long.second <- Sentence.Searcher.Group(sentence.list,TermGroup,c("2"),TRUE)[,2]
+long.two.terms <- data.frame(long.first, long.second)
+colnames(long.two.terms) <- c("First Term", "Second Term")
+long.two.terms
 ```
 
 #### Word Cloud  
+The text with larger in size and darker in color as shown in the words cloud below are the words that appeared more often in the speeches. As we can see, the most frequent words used by the POTUS of these three groups are the same, which inclue "will", "people", and "government". 
 ```{r, fig.width = 10, fig.height = 4.5, warning=FALSE}
-par(mar=c(4.5,5.5,2,1), mfrow=c(1,length(TermGroup)))
+par(mar=c(1,1,1,1), mfrow=c(1,length(TermGroup)))
 set.seed(123)
-Word.Cloud.Group(inaug.list,TermGroup,TermGroup.name)
+Word.Cloud.Group(inaug.list,TermGroup)
 ```
-For POTUS who served two terms, we would like to see if there is any differece between the their first term and sencond term. 
-```{r, fig.width = 10, fig.height = 4.5, warning=FALSE}
-par(mar=c(4.5,5.5,2,1), mfrow=c(1,2))
+For POTUS who served two terms, as shown the in the word cloud below, the most frequently used words are very similar between their first term and sencond term.  
+```{r, fig.width = 7, fig.height = 4.5, warning=FALSE}
+par(mar=c(1,1,1,1), mfrow=c(1,2))
 set.seed(123)
 for (i in 1:2){
-  iii.var <- inaug.list%>%
+  ii.var <- inaug.list%>%
              filter(File%in%unlist(TermGroup[2]))
 
-  iii.docs <- Corpus(VectorSource(iii.var$Fulltext))
-  iii.docs <- tm_map(iii.docs, stripWhitespace) # Eliminate extra whitespace
-  iii.docs <- tm_map(iii.docs, content_transformer(tolower)) # Convert to lower case
-  iii.docs <- tm_map(iii.docs, removeWords, stopwords("english")) # Remove stopwords
-  iii.docs <- tm_map(iii.docs, removeWords, character(0))
-  iii.docs <- tm_map(iii.docs, removePunctuation) # Remove punctuations
-  #iii.docs <- tm_map(iii.docs, removeNumbers) # Remove numbers
-  #iii.docs <- tm_map(iii.docs, stemDocument) # Stem document
+  ii.docs <- Corpus(VectorSource(ii.var$Fulltext))
+  ii.docs <- tm_map(ii.docs, stripWhitespace) # Eliminate extra whitespace
+  ii.docs <- tm_map(ii.docs, content_transformer(tolower)) # Convert to lower case
+  ii.docs <- tm_map(ii.docs, removeWords, stopwords("english")) # Remove stopwords
+  ii.docs <- tm_map(ii.docs, removeWords, character(0))
+  ii.docs <- tm_map(ii.docs, removePunctuation) # Remove punctuations
+  #ii.docs <- tm_map(ii.docs, removeNumbers) # Remove numbers
+  #ii.docs <- tm_map(ii.docs, stemDocument) # Stem document
       
-  iii.tdm <- TermDocumentMatrix(iii.docs)
-  iii.tdm.tidy <- tidy(iii.tdm)
-  iii.tdm.var <- summarise(group_by(iii.tdm.tidy, term), sum(count))
+  ii.tdm <- TermDocumentMatrix(ii.docs)
+  ii.tdm.tidy <- tidy(ii.tdm)
+  ii.tdm.var <- summarise(group_by(ii.tdm.tidy, term), sum(count))
       
 
-  wordcloud(iii.tdm.var$term, iii.tdm.var$`sum(count)`,
+  wordcloud(ii.tdm.var$term, ii.tdm.var$`sum(count)`,
                 scale=c(5,0.5),
                 max.words=100,
                 min.freq=1,
@@ -1090,17 +1120,18 @@ for (i in 1:2){
           )
   title(main = c("First Term","Second Term")[i], 
             cex.main=1.5,
-            col.main=brewer.pal(5, "Blues")[5])
+            col.main=brewer.pal(5, "Blues")[4])
 }
 ```
 
 #### Sentimental Analysis  
-**Clustering of Emotions** 
+As shown in the bar plots below, the overall emotion pattern are very similar for these three groups.    
 ```{r, fig.width = 5, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(length(TermGroup),1))
 # Create barplot of average value of emotions for each group
-Sentimental.Analysis.Plots(sentence.list,TermGroup,TermGroup.name)
+Sentimental.Analysis.Plots(sentence.list,TermGroup)
 ```
+We also compared the first term and second term speeches of the POTUS who served two terms. As shown below, the fear level increases but the sadness level decreases from the first term to the second term, while all other emotions seemed at the same level as the the first term.  
 ```{r, fig.width = 5, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(2,1))
 # Creat Heatmap for correlations and 
@@ -1127,7 +1158,7 @@ par(mar=c(4.5,5.5,2,1), mfrow=c(2,1))
         horiz=T, main="Second Term", xlab = "Average Value of Emotions")
 
 ```
-As shown, the fear level increases but the sadness level decreases from first term to second term, while all other emotions seemed at the same level as the first term. We would like to look into it closer and try to indentify the most influced sentences that drove the changes.    
+Trying to better understand the difference, we have indentified the most influential sentences that drove the fear and sadness level for both terms.   
 ```{r}
 i.emo.var <- sentence.list%>%
                          filter(File%in%unlist(TermGroup[2]),Term==1)%>%
@@ -1146,17 +1177,22 @@ colnames(i.emo.df) <- c("First Term Fear","Second Term Fear",
 i.emo.df
 ```
 
-**What are the emotionally charged sentences?** 
+Below are the emotionally charged sentences of each of these three groups.  
 ```{r}
 # What are the emotionally charged sentences?  
 Sentimental.Sentence.Searcher(sentence.list,TermGroup,c("1","2","3","4"))
-
+```
+For the POTUS who have served two terms, below are the emotionally charged sentences of their first term speeches.
+```{r}
 Sentimental.Sentence.Searcher(sentence.list,TermGroup[2],c("1"))
+```
+And below listed the emotionally charged sentences of their second term speeches. 
+```{r}
 Sentimental.Sentence.Searcher(sentence.list,TermGroup[2],c("2"))
 ```
-
-```{r, fig.width = 10, fig.height = 6, warning=FALSE}
-par(mar=c(4.5,5.5,2,1), mfrow=c(2,1))
+We perform the k-means clustering for the two groups, POTUS who served one term or two terms. The results can be visualized as shown below.  
+```{r, fig.width = 5, fig.height = 4.5, warning=FALSE}
+par(mar=c(1,1,1,1), mfrow=c(1,2))
 # One Term
 ## Perform k-means clustering 
 clustering.rst <- Sentimental.Sentence.KMeans(sentence.list,TermGroup[1],c("1","2","3","4"))
@@ -1178,10 +1214,10 @@ fviz_cluster(clustering.rst[[1]],
              xlab="", xaxt="n",
              show.clust.cent=FALSE)
 ```
-For POTUS who served two terms, we would like to see if there is any differece between their first term and second term.  
-```{r, fig.width = 10, fig.height = 6, warning=FALSE}
+For POTUS who served two terms, it is interesting to see there are a lot differeces in the clustering results between their first term and second term, as shown below. 
+```{r, fig.width = 5, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(2,1))
-# One Term
+# First Term
 ## Perform k-means clustering 
 clustering.rst <- Sentimental.Sentence.KMeans(sentence.list,TermGroup[2],c("1"))
 ## Visualze clustering results 
@@ -1191,7 +1227,7 @@ fviz_cluster(clustering.rst[[1]],
              xlab="", xaxt="n",
              show.clust.cent=FALSE)
 
-# Two  Terms
+# Second  Terms
 ## Perform k-means clustering 
 clustering.rst <- Sentimental.Sentence.KMeans(sentence.list,TermGroup[2],c("2"))
 
@@ -1203,8 +1239,6 @@ fviz_cluster(clustering.rst[[1]],
              show.clust.cent=FALSE)
 ```
 
-#### Topic Modeling
-  
 
 ### Political Party  <a name="PoliticalParty"></a>  {.tabset}
 #### Overview  
@@ -1227,7 +1261,7 @@ Republicans <- inaug.list$File[inaug.list$Party=="Republican"]
 
 # Create group and group name
 PartyGroup <- list("Republicans"=Republicans, "Democrats"=Democrats)
-PartyGroup.name <- "Political Party"
+#PartyGroup.name <- "Political Party"
 ```
 31 POTUS are assigned into 2 groups by the political party they served, i.e., Republican vs. Democratic. The rest of the POTUS will not be in scope of the analysis in terms of the political party they served.   
 
@@ -1245,39 +1279,37 @@ PartyGroup$Democrats
 par(mar=c(4.5,3,2,3), mfrow=c(1,2))
 
 # Create bar plot of each speech
-Speech.Length.Bar.Plot(inaug.list,PartyGroup,PartyGroup.name)
+Speech.Length.Bar.Plot(inaug.list,PartyGroup)
 # Create box plot of each speech by group 
-Speech.Length.Box.Plot(inaug.list,PartyGroup,PartyGroup.name)
+Speech.Length.Box.Plot(inaug.list,PartyGroup)
 ```
 #### Length of Sentences   
 ```{r, fig.width = 10, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,2))
 
-Bee.Swarm.Plot(sentence.list,PartyGroup,PartyGroup.name)
-Bee.Swarm.Plot.Group(sentence.list,PartyGroup,PartyGroup.name)
+Bee.Swarm.Plot(sentence.list,PartyGroup)
+Bee.Swarm.Plot.Group(sentence.list,PartyGroup)
 ```
 Below listed the shortest and longest sentenses in the speech. 
 ```{r, warning=FALSE}
 Sentence.Searcher.Group(sentence.list,PartyGroup,c("1","2","3","4"),FALSE)
 Sentence.Searcher.Group(sentence.list,PartyGroup,c("1","2","3","4"),TRUE)
-
 ```
 
 #### Word Cloud  
 ```{r, fig.width = 10, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,length(PartyGroup)))
 set.seed(123)
-
-Word.Cloud.Group(inaug.list,PartyGroup,PartyGroup.name)
+Word.Cloud.Group(inaug.list,PartyGroup)
 ```
 #### Sentimental Analysis  
-**Clustering of Emotions** 
+As shown, the fear level of speeches of Democrats is higher than that of Republicans, while all other emotions seemed to be at the same level as them. 
 ```{r, fig.width = 5, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(length(PartyGroup),1))
 # Create barplot of average value of emotions for each group
-Sentimental.Analysis.Plots(sentence.list,PartyGroup,PartyGroup.name)
+Sentimental.Analysis.Plots(sentence.list,PartyGroup)
 ```
-As shown, the fear level of speeches of Democrats is higher than that of Republicans, while all other emotions seemed to be at the same level as them. We would like to look into it closer and try to indentify the most influced sentences that drove the difference.    
+We would like to look into it closer and try to indentify the most influced sentences that drove the difference.    
 ```{r}
 i.emo.var <- sentence.list%>%
                          filter(File%in%unlist(PartyGroup[1]))%>%
@@ -1293,13 +1325,12 @@ i.emo.df <- cbind(i.fear,ii.fear)
 colnames(i.emo.df) <- c("Republicans Fear","Democrats Fear")
 i.emo.df
 ```
-
-**What are the emotionally charged sentences?** 
+Below are the emotionally charged sentences of each of these two groups.  
 ```{r}
 # What are the emotionally charged sentences?  
 Sentimental.Sentence.Searcher(sentence.list,PartyGroup,c("1","2","3","4"))
 ```
-
+We perform the k-means clustering for the two groups. The results can be visualized as shown below.  
 ```{r, fig.width = 10, fig.height = 5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(2,1))
 # Reputlican
@@ -1363,21 +1394,21 @@ Advanced.Degree <- c(MA.MS, MBA, Law, Doctorate)
 EducationGroup <- list("No Colledge"=NoColledge,
                         "Undergraduate"=Undergrad,
                         "Advanced Degree"=Advanced.Degree)
-EducationGroup.name <- "Educational Background"
+#EducationGroup.name <- "Educational Background"
 
-summary(Education.Group)[,1]
+#summary(EducationGroup)[,1]
 ```
-POTUS are assigned into 3 groups based on their highest education level. 
+POTUS are assigned into three groups based on their highest education level. 
 
-*   9 POTUS without a colledge degree include: 
+*  `r length(NoColledge)` POTUS without a colledge degree include: 
 ```{r}
 EducationGroup$`No Colledge`
 ```
-*  21 POTUS with only undergraduate degree include: 
+*  `r length(Undergrad)` POTUS with only undergraduate degree include: 
 ```{r}
 EducationGroup$Undergraduate
 ```
-*  7 POTUS with more advanced degree include: 
+*  `r length(Advanced.Degree)` POTUS with more advanced degree include: 
 ```{r}
 EducationGroup$`Advanced Degree`
 ```
@@ -1387,16 +1418,16 @@ EducationGroup$`Advanced Degree`
 par(mar=c(4.5,3,2,3), mfrow=c(1,2))
 
 # Create bar plot of each speech
-Speech.Length.Bar.Plot(inaug.list,EducationGroup,EducationGroup.name)
+Speech.Length.Bar.Plot(inaug.list,EducationGroup)
 # Create box plot of each speech by group 
-Speech.Length.Box.Plot(inaug.list,EducationGroup,EducationGroup.name)
+Speech.Length.Box.Plot(inaug.list,EducationGroup)
 ```
 #### Length of Sentences 
 ```{r, fig.width = 10, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,2))
 
-Bee.Swarm.Plot(sentence.list,EducationGroup,EducationGroup.name)
-Bee.Swarm.Plot.Group(sentence.list,EducationGroup,EducationGroup.name)
+Bee.Swarm.Plot(sentence.list,EducationGroup)
+Bee.Swarm.Plot.Group(sentence.list,EducationGroup)
 ```
 Below listed the shortest and longest sentenses in the speech. 
 ```{r, warning=FALSE}
@@ -1408,23 +1439,21 @@ Sentence.Searcher.Group(sentence.list,EducationGroup,c("1","2","3","4"),TRUE)
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,length(EducationGroup)))
 set.seed(123)
 
-Word.Cloud.Group(inaug.list,EducationGroup,EducationGroup.name)
+Word.Cloud.Group(inaug.list,EducationGroup)
 ```
 
 #### Sentimental Analysis  
-**Clustering of Emotions** 
 ```{r, fig.width = 5, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(length(EducationGroup),1))
 # Create barplot of average value of emotions for each group
-Sentimental.Analysis.Plots(sentence.list,EducationGroup,EducationGroup.name)
+Sentimental.Analysis.Plots(sentence.list,EducationGroup)
 ```
-
-**What are the emotionally charged sentences?** 
+Below are the emotionally charged sentences of each of these two groups.   
 ```{r}
 # What are the emotionally charged sentences?  
 Sentimental.Sentence.Searcher(sentence.list,EducationGroup,c("1","2","3","4"))
 ```
-
+We performed the k-means clustering for the two groups. The results can be visualized as shown below.  
 ```{r, fig.width = 15, fig.height = 10, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(2,1))
 # No Colledge Degree 
@@ -1496,29 +1525,29 @@ CareerGroup <- list("Lawyer"=lawyer,
                "Farmer"=farmer,
                "Educator"=educator, 
                "Businessperson"=businessperson)
-CareerGroup.name <- "Career Prior to Politics"
-summary(Career.Group)[,1]
+#CareerGroup.name <- "Career Prior to Politics"
+#summary(CareerGroup)[,1]
 ```
 
-POTUS are assigned into 5 groups based on their career pior to politics. 
+POTUS are assigned into five groups based on their career pior to politics. 
 
-*   21 POTUS were lawywers include: 
+*   `r length(lawyer)` POTUS were lawywers include: 
 ```{r}
 CareerGroup$Lawyer
 ```
-*  3 POTUS were military leaders: 
+*  `r length(military.leader)` POTUS were military leaders: 
 ```{r}
 CareerGroup$`Military Learder`
 ```
-*  3 POTUS were farmers: 
+*  `r length(farmer)` POTUS were farmers: 
 ```{r}
 CareerGroup$Farmer
 ```
-*  2 POTUS were educators: 
+*  `r length(educator)` POTUS were educators: 
 ```{r}
 CareerGroup$Educator
 ```
-*  3 POTUS were businesspersons: 
+*  `r length(businessperson)` POTUS were businesspersons: 
 ```{r}
 CareerGroup$Businessperson
 ```
@@ -1528,16 +1557,16 @@ CareerGroup$Businessperson
 par(mar=c(4.5,3,2,3), mfrow=c(1,2))
 
 # Create bar plot of each speech
-Speech.Length.Bar.Plot(inaug.list,CareerGroup,CareerGroup.name)
+Speech.Length.Bar.Plot(inaug.list,CareerGroup)
 # Create box plot of each speech by group 
-Speech.Length.Box.Plot(inaug.list,CareerGroup,CareerGroup.name)
+Speech.Length.Box.Plot(inaug.list,CareerGroup)
 ```
 #### Length of Sentences 
 ```{r, fig.width = 10, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,2))
 
-Bee.Swarm.Plot(sentence.list,CareerGroup,CareerGroup.name)
-Bee.Swarm.Plot.Group(sentence.list,CareerGroup,CareerGroup.name)
+Bee.Swarm.Plot(sentence.list,CareerGroup)
+Bee.Swarm.Plot.Group(sentence.list,CareerGroup)
 ```
 Below listed the shortest and longest sentenses in the speech. 
 ```{r, warning=FALSE}
@@ -1549,23 +1578,22 @@ Sentence.Searcher.Group(sentence.list,CareerGroup,c("1","2","3","4"),TRUE)
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,length(CareerGroup)))
 set.seed(123)
 
-Word.Cloud.Group(inaug.list,CareerGroup,CareerGroup.name)
+Word.Cloud.Group(inaug.list,CareerGroup)
 ```
 
 #### Sentimental Analysis  
-**Clustering of Emotions** 
 ```{r, fig.width = 5, fig.height = 10, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(length(CareerGroup),1))
 # Create barplot of average value of emotions for each group
-Sentimental.Analysis.Plots(sentence.list,CareerGroup,CareerGroup.name)
+Sentimental.Analysis.Plots(sentence.list,CareerGroup)
 ```
 
-**What are the emotionally charged sentences?** 
+Below are the emotionally charged sentences of each of these groups.   
 ```{r}
 # What are the emotionally charged sentences?  
 Sentimental.Sentence.Searcher(sentence.list,CareerGroup,c("1","2","3","4"))
 ```
-We would like to take a look at the cluster plot of the Lawyer group, as size of other groups are quite small. 
+We performed the k-means clustering of the Lawyer group, as size of other groups are quite small. 
 ```{r, fig.width = 10, fig.height = 5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(2,1))
 # Lawyer
@@ -1598,7 +1626,6 @@ POTUS are assigned into two groups based on whether it was war era while they we
 James Madison(War of 1812), James Polk(Mexican War), Abraham Lincoln(Civil War), William McKinley(Spanish-American War), Woodrow Wilson(WWI), Franklin D. Roosevelt(WWII), Harry S. Truman(Korean War), Lyndon Johnson(Vietam War), Richard Nixon(Vietnam War), George Bush(Gulf War), George W. Bush(War on Terror).  
 
 *   The rest 38 POTUS were serving not during war era.
-
 ```{r}
 ### Served During War Era?  
 # Indentify POTUS who served during war eras 
@@ -1610,7 +1637,7 @@ nowar.era <- inaug.list$File[!(inaug.list$File%in%war.era)]
 
 # Create group and group name
 WarGroup <- list("No War Era"=nowar.era, "War Era"=war.era)
-WarGroup.name <- "Whether Served During War Era" 
+#WarGroup.name <- "Whether Served During War Era" 
 
 summary(WarGroup)[,1]
 ```
@@ -1620,16 +1647,16 @@ summary(WarGroup)[,1]
 par(mar=c(4.5,3,2,3), mfrow=c(1,2))
 
 # Create bar plot of each speech
-Speech.Length.Bar.Plot(inaug.list,WarGroup,WarGroup.name)
+Speech.Length.Bar.Plot(inaug.list,WarGroup)
 # Create box plot of each speech by group 
-Speech.Length.Box.Plot(inaug.list,WarGroup,WarGroup.name)
+Speech.Length.Box.Plot(inaug.list,WarGroup)
 ```
 #### Length of Sentences 
 ```{r, fig.width = 10, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,2))
 
-Bee.Swarm.Plot(sentence.list,WarGroup,WarGroup.name)
-Bee.Swarm.Plot.Group(sentence.list,WarGroup,WarGroup.name)
+Bee.Swarm.Plot(sentence.list,WarGroup)
+Bee.Swarm.Plot.Group(sentence.list,WarGroup)
 ```
 Below listed the shortest and longest sentenses in the speech. 
 ```{r, warning=FALSE}
@@ -1641,22 +1668,23 @@ Sentence.Searcher.Group(sentence.list,WarGroup,c("1","2","3","4"),TRUE)
 par(mar=c(4.5,5.5,2,1), mfrow=c(1,length(WarGroup)))
 set.seed(123)
 
-Word.Cloud.Group(inaug.list,WarGroup,WarGroup.name)
+Word.Cloud.Group(inaug.list,WarGroup)
 ```
 
 #### Sentimental Analysis  
-**Clustering of Emotions** 
+
 ```{r, fig.width = 5, fig.height = 4.5, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(length(WarGroup),1))
 # Create barplot of average value of emotions for each group
-Sentimental.Analysis.Plots(sentence.list,WarGroup,WarGroup.name)
+Sentimental.Analysis.Plots(sentence.list,WarGroup)
 ```
 
-**What are the emotionally charged sentences?** 
+Below are the emotionally charged sentences of each of these two groups.   
 ```{r}
 # What are the emotionally charged sentences?  
 Sentimental.Sentence.Searcher(sentence.list,WarGroup,c("1","2","3","4"))
 ```
+We performed the k-means clustering for the two groups. The results can be visualized as shown below.  
 ```{r, fig.width = 15, fig.height = 10, warning=FALSE}
 par(mar=c(4.5,5.5,2,1), mfrow=c(2,1))
 # No War Era
