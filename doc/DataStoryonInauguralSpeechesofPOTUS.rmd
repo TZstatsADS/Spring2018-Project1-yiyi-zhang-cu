@@ -16,7 +16,7 @@ What are the most memorable inaugurable address quotes that you can think of off
 "My fellow Americans: Ask not what your country can do for you - ask what you can do for your country. My fellow citizens of the world: Ask not what America will do for you, but what together we can do for the freedom of man."
 *- John F. Kennedy, Jan. 20, 1961.*
 
-Although there are a few very memorable, most inaugural addresses have been long forgotten. This note book will give us a chance to take a closer look at the inaugural speeches of the President of the U.S. (POTUS), but from a data scientic perspective. The scope of this analysis includes 58 Inaugural Speeches of 39 POTUS, which are scrapped from [The American Presidentcy Project][1]. 
+Although there are a few very memorable, most inaugural addresses have been long forgotten. This note book will give us a chance to take a closer look at the inaugural speeches of the President of the U.S. (POTUS), but more from a data scientist's perspective. The scope of this analysis includes 58 Inaugural Speeches of 39 POTUS, which are scrapped from [The American Presidentcy Project][1]. 
 
 
 ## Staging {.tabset}
